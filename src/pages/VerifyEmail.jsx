@@ -4,7 +4,7 @@ import axios from '../utils/axiosConfig';
 import { Link } from 'react-router-dom';
 
 export default function VerifyEmail() {
-  const { token, status } = useParams(); // status can be 'success' or 'error'
+  const { token } = useParams(); // Only token from URL params
   const location = useLocation();
   const [msg, setMsg] = useState('Verifying your email...');
   const [isSuccess, setIsSuccess] = useState(false);
@@ -13,11 +13,12 @@ export default function VerifyEmail() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we're coming from a redirect with status and message
+    // Check if we're coming from a redirect with status and message in query params
     const urlParams = new URLSearchParams(location.search);
+    const statusFromUrl = urlParams.get('status');
     const messageFromUrl = urlParams.get('message');
     
-    if (status === 'success') {
+    if (statusFromUrl === 'success') {
       setMsg(messageFromUrl || 'Your email has been successfully verified! You can now access all features of TalkSync.');
       setIsSuccess(true);
       setIsLoading(false);
@@ -35,7 +36,7 @@ export default function VerifyEmail() {
       }, 1000);
 
       return () => clearInterval(timer);
-    } else if (status === 'error') {
+    } else if (statusFromUrl === 'error') {
       setMsg(messageFromUrl || 'The verification link is invalid or has expired. Please request a new verification email.');
       setIsSuccess(false);
       setIsLoading(false);
@@ -75,7 +76,7 @@ export default function VerifyEmail() {
       setIsSuccess(false);
       setIsLoading(false);
     }
-  }, [token, status, location.search, navigate]);
+  }, [token, location.search, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4">
