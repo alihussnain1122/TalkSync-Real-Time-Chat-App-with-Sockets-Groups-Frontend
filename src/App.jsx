@@ -19,6 +19,9 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify/:token" element={<VerifyEmail />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        {/* Temporary fallback routes for old backend redirects */}
+        <Route path="/verify-email/success" element={<VerifyEmail />} />
+        <Route path="/verify-email/error" element={<VerifyEmail />} />
         <Route path="/chats" element={user ? <Chats /> : <Navigate to="/" />} />
         <Route path="/chats/:chatId" element={user ? <ChatPage /> : <Navigate to="/" />} />
       </Routes>
