@@ -22,13 +22,10 @@ const ChatPage = () => {
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
   
-  // Refs for voice recording
+  // Refs
   const typingTimerRef = useRef();
   const fileInputRef = useRef();
-  const audioChunksRef = useRef([]);
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -235,103 +232,6 @@ const ChatPage = () => {
     }
   };
 
-  // Voice recording functions
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } 
-      });
-      
-      const options = { mimeType: 'audio/webm;codecs=opus' };
-      
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options.mimeType = 'audio/wav';
-      }
-      
-      const recorder = new MediaRecorder(stream, options);
-      
-      recorder.onstart = () => {
-        setIsRecording(true);
-        audioChunksRef.current = [];
-      };
-      
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-      
-      recorder.onstop = async () => {
-        setIsRecording(false);
-        stream.getTracks().forEach(track => track.stop());
-        if (audioChunksRef.current.length > 0) {
-          await sendVoiceNote(audioChunksRef.current);
-        }
-      };
-      
-      setMediaRecorder(recorder);
-      recorder.start(1000);
-    } catch (err) {
-      setError('Unable to access microphone. Please check your permissions.',err);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-    }
-  };
-
-  const sendVoiceNote = async (chunks) => {
-    if (!chunks || chunks.length === 0) return;
-    
-    try {
-      setSending(true);
-      const audioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
-      const formData = new FormData();
-      formData.append('files', audioBlob, `voice-note-${Date.now()}.webm`);
-      
-      const uploadRes = await axios.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const messageData = {
-        chatId,
-        content: '',
-        attachments: uploadRes.data.files.map(file => ({
-          ...file,
-          type: 'voice'
-        }))
-      };
-      
-      const res = await axios.post('/message', messageData);
-      setMessages(prev => [...prev, res.data]);
-      
-      if (socket?.current && chatInfo) {
-        socket.current.emit('new message', {
-          ...res.data,
-          chat: chatInfo
-        });
-      }
-      
-      audioChunksRef.current = [];
-      setMediaRecorder(null);
-    } catch (err) {
-      setError(`Failed to send voice note: ${err.response?.data?.message || err.message}`);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const cancelRecording = () => {
-    if (mediaRecorder) {
-      mediaRecorder.stop();
-    }
-    audioChunksRef.current = [];
-    setMediaRecorder(null);
-    setIsRecording(false);
-  };
-
   // Loading state
   if (loading) {
     return (
@@ -521,56 +421,6 @@ const ChatPage = () => {
                                   </svg>
                                 </div>
                               </div>
-                            ) : attachment.type === 'voice' ? (
-                              <div className={`relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:shadow-lg ${
-                                isOwnMessage 
-                                  ? 'border-white/30 bg-white/10 backdrop-blur-sm hover:bg-white/20' 
-                                  : 'border-purple-200 dark:border-purple-700 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 hover:from-purple-100 hover:to-indigo-100 dark:hover:from-purple-800/30 dark:hover:to-indigo-800/30'
-                              }`}>
-                                <div className="flex items-center p-4">
-                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mr-4 shadow-lg ${
-                                    isOwnMessage 
-                                      ? 'bg-white/30 backdrop-blur-sm' 
-                                      : 'bg-gradient-to-br from-purple-500 to-indigo-600'
-                                  }`}>
-                                    <svg className={`w-6 h-6 ${isOwnMessage ? 'text-white' : 'text-white'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                    </svg>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className={`text-sm font-semibold ${isOwnMessage ? 'text-white' : 'text-purple-700 dark:text-purple-300'}`}>
-                                        Voice Message
-                                      </span>
-                                      <div className="flex items-center space-x-1">
-                                        <div className={`w-2 h-2 rounded-full ${isOwnMessage ? 'bg-white/60' : 'bg-purple-400'}`}></div>
-                                        <div className={`w-1.5 h-3 rounded-full ${isOwnMessage ? 'bg-white/60' : 'bg-purple-400'}`}></div>
-                                        <div className={`w-2 h-4 rounded-full ${isOwnMessage ? 'bg-white/60' : 'bg-purple-400'}`}></div>
-                                        <div className={`w-1.5 h-2 rounded-full ${isOwnMessage ? 'bg-white/60' : 'bg-purple-400'}`}></div>
-                                        <div className={`w-2 h-5 rounded-full ${isOwnMessage ? 'bg-white/60' : 'bg-purple-400'}`}></div>
-                                      </div>
-                                    </div>
-                                    <audio 
-                                      controls 
-                                      className="w-full h-8 rounded-lg"
-                                      style={{
-                                        filter: isOwnMessage ? 'invert(1) brightness(2)' : 'none',
-                                        background: 'transparent'
-                                      }}
-                                      preload="metadata"
-                                    >
-                                      <source src={getFileUrl(attachment.url)} type={attachment.mimetype || 'audio/webm'} />
-                                      <source src={getFileUrl(attachment.url)} type="audio/wav" />
-                                      <source src={getFileUrl(attachment.url)} type="audio/mpeg" />
-                                    </audio>
-                                  </div>
-                                </div>
-                                <div className={`absolute inset-0 pointer-events-none ${
-                                  isOwnMessage 
-                                    ? 'bg-gradient-to-r from-transparent via-white/5 to-transparent' 
-                                    : 'bg-gradient-to-r from-transparent via-purple-200/20 to-transparent'
-                                } transform -skew-x-12 translate-x-full group-hover:translate-x-[-200%] transition-transform duration-1000`}></div>
-                              </div>
                             ) : (
                               <div className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:shadow-lg cursor-pointer ${
                                 isOwnMessage 
@@ -757,11 +607,11 @@ const ChatPage = () => {
               type="button"
               onClick={handleAttachmentClick}
               className={`p-3 sm:p-3.5 rounded-2xl transition-all duration-300 shadow-lg flex-shrink-0 transform hover:scale-110 ${
-                sending || uploading || isRecording
+                sending || uploading
                   ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
                   : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 text-[#6366F1] dark:text-indigo-300 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-gray-600 dark:hover:to-gray-500 border-2 border-blue-200 dark:border-gray-600 hover:border-[#6366F1]/50 hover:shadow-xl hover:shadow-blue-200/50 dark:hover:shadow-gray-900/50'
               }`}
-              disabled={sending || uploading || isRecording}
+              disabled={sending || uploading}
               title="Attach files (Images, PDFs, Documents)"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -770,57 +620,6 @@ const ChatPage = () => {
             </button>
             <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 animate-pulse"></div>
           </div>
-          
-          {/* Voice Recording */}
-          {!isRecording ? (
-            <div className="relative group">
-              <button
-                type="button"
-                onClick={startRecording}
-                className={`p-3 sm:p-3.5 rounded-2xl transition-all duration-300 shadow-lg flex-shrink-0 transform hover:scale-110 ${
-                  sending || uploading
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-br from-emerald-50 to-green-50 dark:from-gray-700 dark:to-gray-600 text-emerald-600 dark:text-emerald-400 hover:from-emerald-100 hover:to-green-100 dark:hover:from-gray-600 dark:hover:to-gray-500 border-2 border-emerald-200 dark:border-gray-600 hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-200/50 dark:hover:shadow-gray-900/50'
-                }`}
-                disabled={sending || uploading}
-                title="Record voice note"
-              >
-                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                </svg>
-              </button>
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-emerald-500 to-green-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 animate-pulse"></div>
-            </div>
-          ) : (
-            <div className="flex items-center space-x-3 bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 rounded-2xl p-2 border-2 border-red-200 dark:border-red-800/50 shadow-lg">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium text-red-600 dark:text-red-400">Recording...</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={cancelRecording}
-                  className="p-2 bg-white dark:bg-gray-800 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200 hover:scale-110 shadow-md border border-red-200 dark:border-red-700"
-                  title="Cancel recording"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="p-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-xl transition-all duration-200 hover:scale-110 shadow-lg"
-                  title="Stop and send recording"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
           
           {/* Message Input */}
           <div className="flex-1 relative">
