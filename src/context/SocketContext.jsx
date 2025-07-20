@@ -10,7 +10,7 @@ export const SocketProvider= ({children})=>{
     
     useEffect(()=>{
         if(user){
-            socket.current= io("http://localhost:5000");
+            socket.current= io(import.meta.env.VITE_SERVER_URL || "https://talksync-kvsb.onrender.com");
             socket.current.emit("setup", user);
         }
         return ()=>{

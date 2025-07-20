@@ -21,7 +21,7 @@ const Register = () => {
     setError('');
     
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/signup', form);
+      const res = await axios.post('/auth/signup', form);
       login(res.data.user);
       navigate('/');
     } catch (err) {
