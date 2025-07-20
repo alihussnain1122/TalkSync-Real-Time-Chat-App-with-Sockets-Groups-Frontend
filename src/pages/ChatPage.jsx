@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios, { getFileUrl } from '../utils/axiosConfig';
+import axios from '../utils/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 
@@ -20,12 +20,9 @@ const ChatPage = () => {
   const [chatInfo, setChatInfo] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
   const [typingUsers, setTypingUsers] = useState(new Set());
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [uploading, setUploading] = useState(false);
   
   // Refs
   const typingTimerRef = useRef();
-  const fileInputRef = useRef();
 
   // Auto-scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -124,7 +121,7 @@ const ChatPage = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if ((!newMessage.trim() && selectedFiles.length === 0) || sending) return;
+    if (!newMessage.trim() || sending) return;
     
     setSending(true);
     setError('');
@@ -134,27 +131,9 @@ const ChatPage = () => {
     }
     
     try {
-      let attachments = [];
-      
-      if (selectedFiles.length > 0) {
-        setUploading(true);
-        const formData = new FormData();
-        selectedFiles.forEach(file => {
-          formData.append('files', file);
-        });
-        
-        const uploadRes = await axios.post('/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        
-        attachments = uploadRes.data.files || [];
-        setUploading(false);
-      }
-      
       const res = await axios.post('/message', {
         chatId,
-        content: newMessage.trim() || '',
-        attachments
+        content: newMessage.trim()
       });
       
       setMessages(prev => [...prev, res.data]);
@@ -167,35 +146,11 @@ const ChatPage = () => {
       }
       
       setNewMessage('');
-      setSelectedFiles([]);
     } catch (err) {
       setError(`Failed to send message: ${err.response?.data?.message || err.message}`);
-      setUploading(false);
     } finally {
       setSending(false);
     }
-  };
-
-  // Handle file selection
-  const handleFileSelect = (e) => {
-    const files = Array.from(e.target.files);
-    const validFiles = files.filter(file => {
-      if (file.size > 10 * 1024 * 1024) {
-        setError('File size must be less than 10MB');
-        return false;
-      }
-      return true;
-    });
-    
-    setSelectedFiles(prev => [...prev, ...validFiles]);
-  };
-
-  const removeFile = (index) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleAttachmentClick = () => {
-    fileInputRef.current?.click();
   };
 
   // Handle typing indicators
@@ -374,7 +329,7 @@ const ChatPage = () => {
               </div>
             </div>
             <h3 className="text-lg sm:text-xl font-bold text-[#111827] dark:text-[#F3F4F6] mb-2">No messages yet</h3>
-            <p className="text-sm sm:text-base text-[#6B7280] dark:text-gray-400 max-w-md mx-auto">Start the conversation by sending a message below. Share your thoughts, files, or record a voice note!</p>
+            <p className="text-sm sm:text-base text-[#6B7280] dark:text-gray-400 max-w-md mx-auto">Start the conversation by sending a message below. Share your thoughts and ideas!</p>
           </div>
         ) : (
           messages.map((message) => {
@@ -401,73 +356,6 @@ const ChatPage = () => {
                       <p className="text-xs font-bold mb-2 text-[#6366F1] dark:text-indigo-300">
                         {message.sender.name}
                       </p>
-                    )}
-                    
-                    {message.attachments && message.attachments.length > 0 && (
-                      <div className="mb-2 space-y-2">
-                        {message.attachments.map((attachment, index) => (
-                          <div key={index} className="rounded-lg overflow-hidden">
-                            {attachment.type === 'image' ? (
-                              <div className="relative group">
-                                <img
-                                  src={getFileUrl(attachment.url)}
-                                  alt="Attachment"
-                                  className="max-w-full max-h-64 rounded-lg cursor-pointer transition-transform group-hover:scale-105 shadow-md"
-                                  onClick={() => window.open(getFileUrl(attachment.url), '_blank')}
-                                />
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-200 rounded-lg flex items-center justify-center">
-                                  <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                  </svg>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className={`group relative overflow-hidden rounded-2xl border-2 transition-all duration-300 hover:shadow-lg cursor-pointer ${
-                                isOwnMessage 
-                                  ? 'border-white/30 bg-white/10 backdrop-blur-sm hover:bg-white/20' 
-                                  : 'border-blue-200 dark:border-blue-700 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 hover:from-blue-100 hover:to-cyan-100 dark:hover:from-blue-800/30 dark:hover:to-cyan-800/30'
-                              }`}>
-                                <div className="flex items-center p-4">
-                                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mr-4 shadow-lg group-hover:scale-110 transition-transform duration-200 ${
-                                    isOwnMessage 
-                                      ? 'bg-white/30 backdrop-blur-sm' 
-                                      : 'bg-gradient-to-br from-blue-500 to-cyan-600'
-                                  }`}>
-                                    <svg className={`w-6 h-6 ${isOwnMessage ? 'text-white' : 'text-white'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                    </svg>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <a
-                                      href={getFileUrl(attachment.url)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className={`block text-sm font-semibold truncate mb-1 group-hover:text-blue-600 transition-colors ${
-                                        isOwnMessage ? 'text-white hover:text-blue-200' : 'text-blue-700 dark:text-blue-300'
-                                      }`}
-                                    >
-                                      {attachment.originalName || attachment.name || attachment.filename}
-                                    </a>
-                                    <div className="flex items-center justify-between">
-                                      <span className={`text-xs ${isOwnMessage ? 'text-white/80' : 'text-blue-600/80 dark:text-blue-400/80'}`}>
-                                        Click to download
-                                      </span>
-                                      <svg className={`w-4 h-4 group-hover:translate-x-1 transition-transform ${isOwnMessage ? 'text-white/70' : 'text-blue-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className={`absolute inset-0 pointer-events-none ${
-                                  isOwnMessage 
-                                    ? 'bg-gradient-to-r from-transparent via-white/5 to-transparent' 
-                                    : 'bg-gradient-to-r from-transparent via-blue-200/20 to-transparent'
-                                } transform -skew-x-12 translate-x-full group-hover:translate-x-[-200%] transition-transform duration-1000`}></div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
                     )}
                     
                     {message.content && (
@@ -522,105 +410,7 @@ const ChatPage = () => {
 
       {/* Message Input */}
       <div className="border-t border-[#E5E7EB] dark:border-gray-700 px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-white dark:bg-gray-800 shadow-lg">
-        {selectedFiles.length > 0 && (
-          <div className="mb-4 space-y-2">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
-                <svg className="w-4 h-4 mr-2 text-[#6366F1]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-                {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''} selected
-              </h4>
-              <button
-                type="button"
-                onClick={() => setSelectedFiles([])}
-                className="text-xs text-gray-500 hover:text-red-500 transition-colors duration-200 font-medium"
-              >
-                Clear all
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {selectedFiles.map((file, index) => {
-                const isImage = file.type.startsWith('image/');
-                const fileSize = (file.size / 1024 / 1024).toFixed(2);
-                
-                return (
-                  <div key={index} className="group relative bg-white dark:bg-gray-800 rounded-2xl p-3 shadow-lg border-2 border-gray-100 dark:border-gray-700 hover:border-[#6366F1]/30 dark:hover:border-[#6366F1]/30 transition-all duration-300 hover:shadow-xl max-w-xs">
-                    <div className="flex items-start space-x-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        isImage 
-                          ? 'bg-gradient-to-br from-green-400 to-emerald-500' 
-                          : 'bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]'
-                      } shadow-lg`}>
-                        {isImage ? (
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate" title={file.name}>
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {fileSize} MB • {file.type.split('/')[1]?.toUpperCase() || 'File'}
-                        </p>
-                        <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                          <div className="bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] h-1.5 rounded-full transition-all duration-300" style={{width: '100%'}}></div>
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 transform hover:scale-110"
-                      title="Remove file"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        
         <form onSubmit={handleSendMessage} className="flex items-end space-x-2 sm:space-x-3">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            multiple
-            accept="image/*,.pdf,.doc,.docx,.txt"
-            className="hidden"
-          />
-          
-          {/* Attachment Button */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={handleAttachmentClick}
-              className={`p-3 sm:p-3.5 rounded-2xl transition-all duration-300 shadow-lg flex-shrink-0 transform hover:scale-110 ${
-                sending || uploading
-                  ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 text-[#6366F1] dark:text-indigo-300 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-gray-600 dark:hover:to-gray-500 border-2 border-blue-200 dark:border-gray-600 hover:border-[#6366F1]/50 hover:shadow-xl hover:shadow-blue-200/50 dark:hover:shadow-gray-900/50'
-              }`}
-              disabled={sending || uploading}
-              title="Attach files (Images, PDFs, Documents)"
-            >
-              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-            </button>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-[#6366F1] to-[#8B5CF6] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 animate-pulse"></div>
-          </div>
-          
           {/* Message Input */}
           <div className="flex-1 relative">
             <input
@@ -629,9 +419,9 @@ const ChatPage = () => {
               onChange={handleTyping}
               placeholder="Type a message..."
               className="w-full px-4 sm:px-6 py-3 sm:py-4 border-2 border-[#E5E7EB] dark:border-gray-600 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#6366F1] focus:border-transparent bg-[#F8FAFC] dark:bg-gray-700 text-[#111827] dark:text-[#F3F4F6] placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 shadow-sm text-sm sm:text-base"
-              disabled={sending || uploading}
+              disabled={sending}
             />
-            {(sending || uploading) && (
+            {sending && (
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#6366F1]"></div>
               </div>
@@ -641,14 +431,14 @@ const ChatPage = () => {
           {/* Send Button */}
           <button
             type="submit"
-            disabled={(!newMessage.trim() && selectedFiles.length === 0) || sending || uploading}
+            disabled={!newMessage.trim() || sending}
             className={`px-4 sm:px-6 py-3 sm:py-4 rounded-2xl font-bold transition-all duration-200 shadow-lg flex-shrink-0 ${
-              (!newMessage.trim() && selectedFiles.length === 0) || sending || uploading
+              !newMessage.trim() || sending
                 ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
                 : 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white hover:from-[#5B56F0] hover:to-[#7C3AED] hover:scale-105 hover:shadow-xl transform'
             }`}
           >
-            {sending || uploading ? (
+            {sending ? (
               <div className="flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 <span className="hidden sm:inline text-sm">Sending...</span>
@@ -663,31 +453,6 @@ const ChatPage = () => {
             )}
           </button>
         </form>
-        
-        {uploading && (
-          <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border-2 border-blue-200 dark:border-blue-800 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-blue-200 dark:border-blue-700"></div>
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-3 border-blue-600 absolute top-0 left-0"></div>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Uploading files...</p>
-                  <p className="text-xs text-blue-600/70 dark:text-blue-400/70">Please wait while we process your files</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                  {selectedFiles.length} file{selectedFiles.length > 1 ? 's' : ''}
-                </div>
-              </div>
-            </div>
-            <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full animate-pulse" style={{width: '70%'}}></div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

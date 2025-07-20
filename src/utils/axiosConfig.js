@@ -19,6 +19,13 @@ export const getFileUrl = (path) => {
   if (path.startsWith('http')) {
     return path;
   }
+  // If path already starts with /api, use SERVER_BASE_URL
+  // If path starts with /uploads, convert to /api/uploads
+  if (path.startsWith('/api/')) {
+    return `${SERVER_BASE_URL}${path}`;
+  } else if (path.startsWith('/uploads/')) {
+    return `${SERVER_BASE_URL}/api${path}`;
+  }
   return `${SERVER_BASE_URL}${path}`;
 };
 
