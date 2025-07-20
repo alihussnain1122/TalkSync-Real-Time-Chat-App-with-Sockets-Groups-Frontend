@@ -18,6 +18,7 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify/:token" element={<VerifyEmail />} />
+        <Route path="/verify-email/:status" element={<VerifyEmail />} />
         <Route path="/chats" element={user ? <Chats /> : <Navigate to="/" />} />
         <Route path="/chats/:chatId" element={user ? <ChatPage /> : <Navigate to="/" />} />
       </Routes>

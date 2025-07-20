@@ -1,46 +1,81 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from '../utils/axiosConfig';
 import { Link } from 'react-router-dom';
 
 export default function VerifyEmail() {
-  const { token } = useParams();
+  const { token, status } = useParams(); // status can be 'success' or 'error'
+  const location = useLocation();
   const [msg, setMsg] = useState('Verifying your email...');
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [countdown, setCountdown] = useState(3);
+  const [countdown, setCountdown] = useState(8);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const verify = async () => {
-      try {
-        setIsLoading(true);
-        const res = await axios.get(`/auth/verify/${token}`);
-        setMsg(res.data.message || 'Your email has been successfully verified! You can now access all features of TalkSync.');
-        setIsSuccess(true);
-        
-        // Start countdown
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              navigate('/');
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+    // Check if we're coming from a redirect with status and message
+    const urlParams = new URLSearchParams(location.search);
+    const messageFromUrl = urlParams.get('message');
+    
+    if (status === 'success') {
+      setMsg(messageFromUrl || 'Your email has been successfully verified! You can now access all features of TalkSync.');
+      setIsSuccess(true);
+      setIsLoading(false);
+      
+      // Start countdown for redirect
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            navigate('/');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
-        return () => clearInterval(timer);
-      } catch (err) {
-        setMsg(err.response?.data?.message || 'The verification link is invalid or has expired. Please request a new verification email.');
-        setIsSuccess(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    verify();
-  }, [token, navigate]);
+      return () => clearInterval(timer);
+    } else if (status === 'error') {
+      setMsg(messageFromUrl || 'The verification link is invalid or has expired. Please request a new verification email.');
+      setIsSuccess(false);
+      setIsLoading(false);
+    } else if (token) {
+      // Legacy token verification for direct API calls
+      const verify = async () => {
+        try {
+          setIsLoading(true);
+          const res = await axios.get(`/auth/verify/${token}`);
+          setMsg(res.data.message || 'Your email has been successfully verified! You can now access all features of TalkSync.');
+          setIsSuccess(true);
+          
+          // Start countdown
+          const timer = setInterval(() => {
+            setCountdown((prev) => {
+              if (prev <= 1) {
+                clearInterval(timer);
+                navigate('/');
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+
+          return () => clearInterval(timer);
+        } catch (err) {
+          setMsg(err.response?.data?.message || 'The verification link is invalid or has expired. Please request a new verification email.');
+          setIsSuccess(false);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      verify();
+    } else {
+      // No token or status provided
+      setMsg('Invalid verification link. Please check your email for the correct verification link.');
+      setIsSuccess(false);
+      setIsLoading(false);
+    }
+  }, [token, status, location.search, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4">
@@ -119,20 +154,32 @@ export default function VerifyEmail() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         <span className="font-medium">
-                          Redirecting in {countdown} second{countdown !== 1 ? 's' : ''}...
+                          Redirecting to login in {countdown} second{countdown !== 1 ? 's' : ''}...
                         </span>
                       </div>
                     </div>
                     
-                    <Link 
-                      to="/" 
-                      className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/50"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                      </svg>
-                      Continue to TalkSync
-                    </Link>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Link 
+                        to="/" 
+                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/50"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                        </svg>
+                        Go to Login
+                      </Link>
+                      
+                      <Link 
+                        to="/chats" 
+                        className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-semibold rounded-xl shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transform hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-emerald-500/50"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Start Chatting
+                      </Link>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
